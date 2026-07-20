@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personae — Automated Customer Segmentation</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <span class="badge">Machine Learning · Summer 2026</span>
+    <h1>Personae</h1>
+    <p class="sub">Automated customer segmentation with LLM-generated personas.
+      Upload a behavioral customer table and get labeled segments, an interactive
+      PCA map, and a plain-language marketing persona for each group.</p>
+  </div>
+</header>
+
+<div class="wrap">
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}{% for m in messages %}<div class="flash">{{ m }}</div>{% endfor %}{% endif %}
+  {% endwith %}
+
+  <div class="card">
+    <h2>Analyze a dataset</h2>
+    <p class="muted">The pipeline imputes missing values, standardizes every numeric
+      feature, reduces with PCA, and partitions customers with K-means — then
+      describes each segment as a grounded persona.</p>
+
+    <form action="{{ url_for('do_analyze') }}" method="post" enctype="multipart/form-data">
+      <div class="uploader">
+        <p><b>Upload a customer CSV</b></p>
+        <input type="file" name="file" accept=".csv">
+        <div>
+          <label class="muted">Segments (k): </label>
+          <input type="number" name="k" min="2" max="10" placeholder="auto (4)" style="width:90px">
+        </div>
+        <br>
+        <button class="btn" type="submit">Segment my customers →</button>
+      </div>
+    </form>
+
+    {% if has_sample %}
+    <form action="{{ url_for('do_analyze') }}" method="post" style="margin-top:16px;text-align:center">
+      <input type="hidden" name="use_sample" value="1">
+      <button class="btn secondary" type="submit">Try it with the sample dataset (8,950 credit-card customers)</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>How it works</h2>
+    <p class="muted">1 · Preprocess — median imputation + standardization so no single
+      high-magnitude field dominates distances. &nbsp; 2 · PCA — reduce redundancy and
+      project to 2-D for visualization. &nbsp; 3 · K-means — partition into segments, k
+      chosen with the elbow + silhouette. &nbsp; 4 · Personas — each segment's average
+      profile becomes a named, plain-language persona grounded in real statistics.</p>
+  </div>
+</div>
+
+<footer>Personae · MSAI Final Project · Jiajun Huang · Aakriti Kaul · Nicholas Kaplun</footer>
+</body>
+</html>

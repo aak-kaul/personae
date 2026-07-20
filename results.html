@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personae — Results</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <span class="badge">Segmentation complete</span>
+    <h1>Your customer segments</h1>
+    <p class="sub">{{ "{:,}".format(d.n_rows) }} customers · {{ d.n_features }} behavioral
+      features · {{ d.chosen_k }} segments discovered.</p>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <h2>At a glance</h2>
+    <div class="stats">
+      <div class="stat"><div class="n">{{ "{:,}".format(d.n_rows) }}</div><div class="l">Customers</div></div>
+      <div class="stat"><div class="n">{{ d.n_features }}</div><div class="l">Features</div></div>
+      <div class="stat"><div class="n">{{ d.chosen_k }}</div><div class="l">Segments</div></div>
+      <div class="stat"><div class="n">{{ d.pca_n90 }}</div><div class="l">PCs for 90% var</div></div>
+      <div class="stat"><div class="n">{{ d.pca_pc12 }}%</div><div class="l">Var in PC1+PC2</div></div>
+    </div>
+    {% if d.missing %}<p class="muted">Missing values imputed:
+      {% for c,v in d.missing.items() %}{{ c }} ({{ v }}){% if not loop.last %}, {% endif %}{% endfor %}.</p>{% endif %}
+  </div>
+
+  <div class="card">
+    <h2>PCA map of segments</h2>
+    <p class="muted">Each point is a customer, projected onto the first two principal
+      components. Color = segment. Click a legend item to toggle a group.</p>
+    <canvas id="scatter" width="1200" height="620"></canvas>
+    <div class="legend" id="scatterLegend"></div>
+  </div>
+
+  <div class="card">
+    <h2>Segment profiles</h2>
+    <table>
+      <thead><tr><th>Segment</th><th>Customers</th><th>Share</th>
+        {% for f in d.headline %}<th>{{ f.replace('_',' ').title() }}</th>{% endfor %}</tr></thead>
+      <tbody>
+      {% for r in d.seg_table %}
+        <tr>
+          <td><span class="swatch" style="background:{{ r.color }}"></span>{{ r.name }}</td>
+          <td>{{ "{:,}".format(r.n) }}</td><td>{{ r.pct }}%</td>
+          {% for f in d.headline %}<td>{{ r[f] }}</td>{% endfor %}
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Generated personas</h2>
+    <p class="muted">Each segment's average statistical profile, translated into a
+      named marketing persona. Every figure is the segment's own average.</p>
+    {% for p in d.personas %}
+      <div class="persona" style="background:linear-gradient(135deg,{{ p.color }},{{ p.color }}cc)">
+        <div class="psize"><div class="pn">{{ "{:,}".format(p.size) }}</div><div class="pp">{{ p.pct }}% of book</div></div>
+        <h3>Segment {{ p.segment }} · {{ p.name }}</h3>
+        <div class="tag">{{ p.tagline }}</div>
+        <div class="desc">{{ p.description }}</div>
+        <div class="play"><b>Recommended play — </b>{{ p.marketing_play }}</div>
+        <div class="kpis">
+          {% for label,val in p.key_stats %}
+            <div class="kpi"><div class="kv">{{ val }}</div><div class="kl">{{ label }}</div></div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div style="text-align:center;margin:26px 0"><a class="btn secondary" href="{{ url_for('index') }}">← Analyze another dataset</a></div>
+</div>
+
+<footer>Personae · MSAI Final Project</footer>
+
+<script>
+// Dependency-free canvas scatter — renders offline, no CDN required.
+const pts = {{ scatter_json|safe }};
+const COLORS = {};
+{% for r in d.seg_table %}COLORS[{{ r.segment }}] = "{{ r.color }}"; {% endfor %}
+const NAMES = {};
+{% for r in d.seg_table %}NAMES[{{ r.segment }}] = "{{ r.name|e }}"; {% endfor %}
+const shown = {};
+Object.keys(COLORS).forEach(s => shown[s] = true);
+
+const cv = document.getElementById('scatter'), ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height, PAD = 48;
+let xmin=Infinity,xmax=-Infinity,ymin=Infinity,ymax=-Infinity;
+pts.forEach(p => { xmin=Math.min(xmin,p.x); xmax=Math.max(xmax,p.x);
+                   ymin=Math.min(ymin,p.y); ymax=Math.max(ymax,p.y); });
+if (xmin===xmax){xmin-=1;xmax+=1;} if (ymin===ymax){ymin-=1;ymax+=1;}
+const px = 0.04*(xmax-xmin), py = 0.06*(ymax-ymin);
+xmin-=px; xmax+=px; ymin-=py; ymax+=py;
+const sx = x => PAD + (x-xmin)/(xmax-xmin)*(W-2*PAD);
+const sy = y => H-PAD - (y-ymin)/(ymax-ymin)*(H-2*PAD);
+
+function draw(){
+  ctx.clearRect(0,0,W,H); ctx.fillStyle='#FBF7F4'; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='#d9cfc6'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(PAD,H-PAD); ctx.lineTo(W-PAD,H-PAD);
+  ctx.moveTo(PAD,PAD); ctx.lineTo(PAD,H-PAD); ctx.stroke();
+  ctx.fillStyle='#2F3E34'; ctx.font='16px sans-serif';
+  ctx.fillText('Principal Component 1', W/2-72, H-16);
+  ctx.save(); ctx.translate(18,H/2+80); ctx.rotate(-Math.PI/2);
+  ctx.fillText('Principal Component 2',0,0); ctx.restore();
+  for (const p of pts){
+    if (!shown[p.s]) continue;
+    ctx.fillStyle = COLORS[p.s] || '#888'; ctx.globalAlpha = 0.55;
+    ctx.beginPath(); ctx.arc(sx(p.x), sy(p.y), 3, 0, 6.283); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+draw();
+
+// clickable legend
+const leg = document.getElementById('scatterLegend');
+Object.keys(COLORS).sort().forEach(s => {
+  const el = document.createElement('div'); el.className = 'leg';
+  el.innerHTML = '<span class="dot" style="background:'+COLORS[s]+'"></span>Seg '+s+' · '+NAMES[s];
+  el.onclick = () => { shown[s] = !shown[s]; el.classList.toggle('off', !shown[s]); draw(); };
+  leg.appendChild(el);
+});
+</script>
+</body>
+</html>
